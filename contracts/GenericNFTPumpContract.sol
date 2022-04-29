@@ -31,11 +31,12 @@ contract GenericNFTPumpContract is Ownable, ERC721, ERC721URIStorage, PaymentSpl
     Counters.Counter private _tokenSupply;
     Counters.Counter private _freeSupply;
 
-    uint256 public constant MAX_TOKENS = 3333;
-    uint256 public publicMintMaxLimit = 100;
-    uint256 public whitelistMintMaxLimit = 100;
-    uint256 public tokenPrice = 0.05 ether;
-    uint256 public whitelistTokenPrice = 0.0 ether;
+    uint256 public constant MAX_TOKENS = 25;
+    uint256 public publicMintMaxLimit = 5;
+    uint256 public whitelistMintMaxLimit = 0;
+    uint256 public tokenPriceGA = 0.055 ether;
+    uint256 public tokenPriceRS = 0.075 ether;
+    uint256 public whitelisttokenPriceGA = 0.0 ether;
     uint256 public maxWhitelistPassMints = 900;
 
     bool public publicMintIsOpen = false;
@@ -116,7 +117,7 @@ contract GenericNFTPumpContract is Ownable, ERC721, ERC721URIStorage, PaymentSpl
         WhitelistClaimPass memory whitelistClaimPass
     ) external payable isWhitelisted(claimable, whitelistClaimPass) {
         require(
-            whitelistTokenPrice * quantity <= msg.value,
+            whitelisttokenPriceGA * quantity <= msg.value,
             "Not enough ether sent"
         );
 
@@ -143,7 +144,7 @@ contract GenericNFTPumpContract is Ownable, ERC721, ERC721URIStorage, PaymentSpl
     }
 
     function openMint(uint256 quantity) external payable {
-        require(tokenPrice * quantity <= msg.value, "Not enough ether sent");
+        require(tokenPriceGA * quantity <= msg.value, "Not enough ether sent");
         uint256 supply = _tokenSupply.current();
         require(publicMintIsOpen == true, "Public Mint Closed");
         require(quantity <= publicMintMaxLimit, "Mint amount too large");
@@ -166,14 +167,14 @@ contract GenericNFTPumpContract is Ownable, ERC721, ERC721URIStorage, PaymentSpl
 
     function setParams(
         uint256 newPrice,
-        uint256 newWhitelistTokenPrice,
+        uint256 newWhitelisttokenPriceGA,
         uint256 setOpenMintLimit,
         uint256 setWhistlistPassMintLimit,
         bool setPublicMintState,
         bool setPrivateMintState
     ) external onlyOwner {
-        whitelistTokenPrice = newWhitelistTokenPrice;
-        tokenPrice = newPrice;
+        whitelisttokenPriceGA = newWhitelisttokenPriceGA;
+        tokenPriceGA = newPrice;
         publicMintMaxLimit = setOpenMintLimit;
         whitelistMintMaxLimit = setWhistlistPassMintLimit;
         publicMintIsOpen = setPublicMintState;
@@ -191,8 +192,8 @@ contract GenericNFTPumpContract is Ownable, ERC721, ERC721URIStorage, PaymentSpl
         whitelistMintMaxLimit = newprivateMintLimit;
     }
 
-    function setTokenPrice(uint256 newPrice) external onlyOwner {
-        tokenPrice = newPrice;
+    function settokenPriceGA(uint256 newPrice) external onlyOwner {
+        tokenPriceGA = newPrice;
     }
 
     function setFreeMints(uint256 amount) external onlyOwner {

@@ -44,7 +44,9 @@ module.exports = {
   },
   mocha: {
     reporter: 'eth-gas-reporter',
-    //reporterOptions : {  } // See options below
+    reporterOptions : { 
+      url: 'http://localhost:8545'
+     } // See options below
   },
   // defaultNetwork: "hardhat",
   // defaultNetwork: "rinkeby",
