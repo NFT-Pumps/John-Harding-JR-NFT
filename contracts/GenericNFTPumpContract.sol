@@ -6,41 +6,36 @@ pragma solidity ^0.8.11;
         <(^_^)>
  ********************/
 
+// import "hardhat/console.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/finance/PaymentSplitter.sol";
+import "./DateTimeLib.sol";
 
-
-contract GenericNFTPumpContract is Ownable, ERC721, ERC721URIStorage, PaymentSplitter {
+contract GenericNFTPumpContract is
+    Ownable,
+    ERC721,
+    ERC721URIStorage,
+    ReentrancyGuard,
+    PaymentSplitter
+{
     using Counters for Counters.Counter;
     using ECDSA for bytes32;
     using Strings for uint256;
 
-    struct user {
-        address userAddress;
-        uint8 entries;
-        bool isExist;
-    }
-    // mapping(address => user) public giveAwayAllowance;
-    // mapping(address => uint256) public giveAwayMints;
-    // uint16 public remainingReserved;
-
+    Counters.Counter private _eventSupply;
     Counters.Counter private _tokenSupply;
-    Counters.Counter private _freeSupply;
 
-    uint256 public constant MAX_TOKENS = 25;
+    //uint256 public constant MAX_TOKENS = 25;
     uint256 public publicMintMaxLimit = 5;
-    uint256 public whitelistMintMaxLimit = 0;
     uint256 public tokenPriceGA = 0.055 ether;
     uint256 public tokenPriceRS = 0.075 ether;
-    uint256 public whitelisttokenPriceGA = 0.0 ether;
-    uint256 public maxWhitelistPassMints = 900;
 
     bool public publicMintIsOpen = false;
-    bool public privateMintIsOpen = true;
     bool public revealed = false;
 
     string _baseTokenURI;
@@ -48,169 +43,215 @@ contract GenericNFTPumpContract is Ownable, ERC721, ERC721URIStorage, PaymentSpl
     string public hiddenMetadataUri;
 
     address private _ContractVault = 0x0000000000000000000000000000000000000000;
-    address private _ClaimsPassSigner = 0x0000000000000000000000000000000000000000;
 
     mapping(address => bool) whitelistedAddresses;
 
     string public Author = "techoshi.eth";
     string public ProjectTeam = "";
 
-    struct WhitelistClaimPass {
-        bytes32 r;
-        bytes32 s;
-        uint8 v;
+    struct eventSchedule {
+        string title;
+        uint256 eventID;
+        uint256 startMint;
+        uint256 endMint;
+        uint16 noOfGeneralMints;
+        uint16 noOfRingSideMints;
+        uint16 generalMinted;
+        uint16 ringsideMinted;
+        bool state;
     }
 
-    function _isVerifiedWhitelistClaimPass(
-        bytes32 digest,
-        WhitelistClaimPass memory whitelistClaimPass
-    ) internal view returns (bool) {
-        address signer = ecrecover(
-            digest,
-            whitelistClaimPass.v,
-            whitelistClaimPass.r,
-            whitelistClaimPass.s
-        );
-
-        require(signer != address(0), "ECDSA: invalid signature");
-        return signer == _ClaimsPassSigner;
+    enum seatType {
+        General,
+        Ringside
     }
 
-    modifier isWhitelisted(uint8 amount, WhitelistClaimPass memory whitelistClaimPass) {
-        bytes32 digest = keccak256(
-            abi.encode(amount, msg.sender)
-        );
-
-        require(
-            _isVerifiedWhitelistClaimPass(digest, whitelistClaimPass),
-            "Invalid Pass"
-        ); // 4
-        _;
-    }
+    eventSchedule[] public allEvents;
+    mapping(uint256 => bool) public eventsMap;
+    mapping(uint256 => uint256) public tokenToEventMap;
 
     constructor(
         string memory contractName,
         string memory contractSymbol,
         address _vault,
-        address _signer,
         string memory __baseTokenURI,
         string memory _hiddenMetadataUri,
-        address[] memory _payees, uint256[] memory _shares
-    ) ERC721(contractName, contractSymbol)  PaymentSplitter(_payees, _shares) payable {
+        address[] memory _payees,
+        uint256[] memory _shares
+    )
+        payable
+        ERC721(contractName, contractSymbol)
+        PaymentSplitter(_payees, _shares)
+    {
         _ContractVault = _vault;
-        _ClaimsPassSigner = _signer;
-        _tokenSupply.increment();
-        _tokenSupply.increment();
-        _safeMint(msg.sender, 1);
         _baseTokenURI = __baseTokenURI;
         hiddenMetadataUri = _hiddenMetadataUri;
-        
     }
-    
+
     function withdraw() external onlyOwner {
         payable(_ContractVault).transfer(address(this).balance);
     }
 
-    function whitelistClaimMint(
-        uint8 quantity, //Whitelist,
-        uint8 claimable,
-        WhitelistClaimPass memory whitelistClaimPass
-    ) external payable isWhitelisted(claimable, whitelistClaimPass) {
-        require(
-            whitelisttokenPriceGA * quantity <= msg.value,
-            "Not enough ether sent"
-        );
+    function createAdmissionEvent(
+        string memory title,
+        uint256 openMintDate,
+        uint256 closedMintDate,
+        uint16 generalMints,
+        uint16 ringsideMints,
+        bool forceState
+    ) external returns (uint256) {
+        eventSchedule memory thisRecord = eventSchedule({
+            eventID: _eventSupply.current(),
+            title: title,
+            startMint: openMintDate,
+            endMint: closedMintDate,
+            noOfGeneralMints: generalMints,
+            noOfRingSideMints: ringsideMints,
+            state: forceState,
+            generalMinted: 0,
+            ringsideMinted: 0
+        });
 
-        uint256 supply = _tokenSupply.current();        
+        allEvents.push(thisRecord);
+        eventsMap[_eventSupply.current()] = true;
+        _eventSupply.increment();
 
-        require(privateMintIsOpen == true, "Claim Mint Closed");
-        require(quantity + (supply-1) <= MAX_TOKENS, "Not enough tokens remaining");
-        require(quantity <= claimable, "Mint quantity can't be greater than claimable");
-        require(quantity > 0, "Mint quantity must be greater than zero");
-        require(quantity <= whitelistMintMaxLimit, "Mint quantity too large");
-        require(
-            _freeSupply.current() + quantity <= maxWhitelistPassMints,
-            "Not enough free mints remaining"
-        );
-
-        // giveAwayMints[msg.sender] += quantity;        
-
-        for (uint256 i = 0; i < quantity; i++) {
-            _tokenSupply.increment();
-            _freeSupply.increment();
-            _safeMint(msg.sender, supply + i);
-        }
-
+        return thisRecord.eventID;
     }
 
-    function openMint(uint256 quantity) external payable {
+    function updateAdmissionEvent(
+        uint256 eventID,
+        string memory title,
+        uint256 openMintDate,
+        uint256 closedMintDate,
+        bool forceState
+    ) external {
+        require(allEvents.length >= eventID, "Invalid Event ID");
+        require(eventsMap[eventID] == true, "Event Doesnt Exist");
+
+        eventSchedule memory recordToBeUpdated = allEvents[eventID];
+
+        recordToBeUpdated.title = title;
+        recordToBeUpdated.startMint = openMintDate;
+        recordToBeUpdated.endMint = closedMintDate;
+        recordToBeUpdated.state = forceState;
+
+        allEvents[eventID] = recordToBeUpdated;
+    }
+
+    modifier isValidEventMint(
+        uint256 eventID,
+        uint256 quantity,
+        seatType mintType
+    ) {
+        require(eventsMap[eventID] == true, "Event Doesnt Exist");
+        require(
+            allEvents[eventID].startMint <= currentTimestamp() &&
+                allEvents[eventID].endMint >= currentTimestamp() &&
+                allEvents[eventID].state == true,
+            "Event can not Mint"
+        );
+
+        require(publicMintIsOpen == true, "Mint is Closed");
+        require(quantity <= publicMintMaxLimit, "Mint amount too large");
+
+        uint16 maxNoOfMints = 0;
+        uint16 currentSupplyOfMintType = 0;
+
+        if (mintType == seatType.General) {
+            maxNoOfMints = allEvents[eventID].noOfGeneralMints;
+            currentSupplyOfMintType = allEvents[eventID].generalMinted;
+        }
+
+        if (mintType == seatType.Ringside) {
+            maxNoOfMints = allEvents[eventID].noOfRingSideMints;
+            currentSupplyOfMintType = allEvents[eventID].ringsideMinted;
+        }
+
+        require(
+            quantity + currentSupplyOfMintType <= maxNoOfMints,
+            "Not enough tokens remaining"
+        );
+
+        _;
+    }
+
+    function currentTimestamp() public view returns (uint256) {
+        return block.timestamp;
+    }
+
+    function getEvents() public view returns (eventSchedule[] memory) {
+        return allEvents;
+    }
+
+    function generalAdmissionMint(uint256 eventID, uint16 quantity)
+        external
+        payable
+        isValidEventMint(eventID, quantity, seatType.General)
+    {
         require(tokenPriceGA * quantity <= msg.value, "Not enough ether sent");
         uint256 supply = _tokenSupply.current();
-        require(publicMintIsOpen == true, "Public Mint Closed");
-        require(quantity <= publicMintMaxLimit, "Mint amount too large");
-        require(quantity + (supply-1) <= MAX_TOKENS, "Not enough tokens remaining");
+
+        allEvents[eventID].generalMinted += quantity;
 
         for (uint256 i = 0; i < quantity; i++) {
             _tokenSupply.increment();
+            tokenToEventMap[supply + i] = eventID;
             _safeMint(msg.sender, supply + i);
         }
     }
 
-    function teamMint(address to, uint256 amount) external onlyOwner {
+    function RingSideMint(uint256 eventID, uint16 quantity)
+        external
+        payable
+        isValidEventMint(eventID, quantity, seatType.Ringside)
+    {
+        require(tokenPriceRS * quantity <= msg.value, "Not enough ether sent");
         uint256 supply = _tokenSupply.current();
-        require((supply-1) + amount <= MAX_TOKENS, "Not enough tokens remaining");
-        for (uint256 i = 0; i < amount; i++) {
+
+        allEvents[eventID].ringsideMinted += quantity;
+
+        for (uint256 i = 0; i < quantity; i++) {
             _tokenSupply.increment();
-            _safeMint(to, supply + i);
+            tokenToEventMap[supply + i] = eventID;
+            _safeMint(msg.sender, supply + i);
         }
     }
 
     function setParams(
-        uint256 newPrice,
-        uint256 newWhitelisttokenPriceGA,
+        uint256 newGeneralPrice,
+        uint256 newRingsidePrice,
         uint256 setOpenMintLimit,
-        uint256 setWhistlistPassMintLimit,
-        bool setPublicMintState,
-        bool setPrivateMintState
+        bool setPublicMintState
     ) external onlyOwner {
-        whitelisttokenPriceGA = newWhitelisttokenPriceGA;
-        tokenPriceGA = newPrice;
+        tokenPriceRS = newRingsidePrice;
+        tokenPriceGA = newGeneralPrice;
         publicMintMaxLimit = setOpenMintLimit;
-        whitelistMintMaxLimit = setWhistlistPassMintLimit;
         publicMintIsOpen = setPublicMintState;
-        privateMintIsOpen = setPrivateMintState;
     }
 
     function setTransactionMintLimit(uint256 newMintLimit) external onlyOwner {
         publicMintMaxLimit = newMintLimit;
     }
 
-    function setWhitelistTransactionMintLimit(uint256 newprivateMintLimit)
-        external
-        onlyOwner
-    {
-        whitelistMintMaxLimit = newprivateMintLimit;
-    }
-
-    function settokenPriceGA(uint256 newPrice) external onlyOwner {
+    function setGeneralPrice(uint256 newPrice) external onlyOwner {
         tokenPriceGA = newPrice;
     }
 
-    function setFreeMints(uint256 amount) external onlyOwner {
-        require(amount <= MAX_TOKENS, "Free mint amount too large");
-        maxWhitelistPassMints = amount;
+    function setRingsidePrice(uint256 newPrice) external onlyOwner {
+        tokenPriceRS = newPrice;
     }
 
     function togglePublicMint() external onlyOwner {
         publicMintIsOpen = !publicMintIsOpen;
     }
 
-    function togglePresaleMint() external onlyOwner {
-        privateMintIsOpen = !privateMintIsOpen;
+    function totalSupply() public view returns (uint256) {
+        return _tokenSupply.current();
     }
 
-    function totalSupply() public view returns (uint256) {
-        return _tokenSupply.current() - 1;
+    function getTokenEventID(uint256 tokenId) public view returns (uint256) {
+        return tokenToEventMap[tokenId];
     }
 
     function setBaseURI(string memory newBaseURI) external onlyOwner {
@@ -264,6 +305,8 @@ contract GenericNFTPumpContract is Ownable, ERC721, ERC721URIStorage, PaymentSpl
                 ? string(
                     abi.encodePacked(
                         currentBaseURI,
+                        tokenToEventMap[_tokenId].toString(),
+                        "/",
                         _tokenId.toString(),
                         baseExtension
                     )
@@ -281,10 +324,4 @@ contract GenericNFTPumpContract is Ownable, ERC721, ERC721URIStorage, PaymentSpl
     {
         hiddenMetadataUri = _hiddenMetadataUri;
     }
-
-    function setSignerAddress(address newSigner) external onlyOwner {
-        _ClaimsPassSigner = newSigner;
-    }
-
-
 }
