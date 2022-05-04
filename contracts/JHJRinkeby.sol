@@ -6,7 +6,7 @@ pragma solidity ^0.8.11;
         <(^_^)>
  ********************/
 
-// import "hardhat/console.sol";
+import "hardhat/console.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
@@ -16,7 +16,7 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/finance/PaymentSplitter.sol";
 import "./DateTimeLib.sol";
 
-contract GenericNFTPumpContract is
+contract JHJRinkeby is
     Ownable,
     ERC721,
     ERC721URIStorage,
@@ -36,7 +36,6 @@ contract GenericNFTPumpContract is
     uint256 public tokenPriceRS = 0.075 ether;
 
     bool public publicMintIsOpen = false;
-    bool public revealed = false;
 
     string _baseTokenURI;
     string public baseExtension = ".json";
@@ -59,6 +58,7 @@ contract GenericNFTPumpContract is
         uint16 generalMinted;
         uint16 ringsideMinted;
         bool state;
+        bool revealed;
     }
 
     enum seatType {
@@ -92,6 +92,8 @@ contract GenericNFTPumpContract is
         payable(_ContractVault).transfer(address(this).balance);
     }
 
+    event eventCreated(uint256);   
+
     function createAdmissionEvent(
         string memory title,
         uint256 openMintDate,
@@ -99,7 +101,7 @@ contract GenericNFTPumpContract is
         uint16 generalMints,
         uint16 ringsideMints,
         bool forceState
-    ) external returns (uint256) {
+    ) external {
         eventSchedule memory thisRecord = eventSchedule({
             eventID: _eventSupply.current(),
             title: title,
@@ -109,14 +111,15 @@ contract GenericNFTPumpContract is
             noOfRingSideMints: ringsideMints,
             state: forceState,
             generalMinted: 0,
-            ringsideMinted: 0
+            ringsideMinted: 0,
+            revealed: false
         });
 
         allEvents.push(thisRecord);
-        eventsMap[_eventSupply.current()] = true;
+        eventsMap[thisRecord.eventID] = true;
         _eventSupply.increment();
-
-        return thisRecord.eventID;
+       
+        emit eventCreated(thisRecord.eventID);
     }
 
     function updateAdmissionEvent(
@@ -124,7 +127,8 @@ contract GenericNFTPumpContract is
         string memory title,
         uint256 openMintDate,
         uint256 closedMintDate,
-        bool forceState
+        bool forceState,
+        bool _revealed
     ) external {
         require(allEvents.length >= eventID, "Invalid Event ID");
         require(eventsMap[eventID] == true, "Event Doesnt Exist");
@@ -135,6 +139,7 @@ contract GenericNFTPumpContract is
         recordToBeUpdated.startMint = openMintDate;
         recordToBeUpdated.endMint = closedMintDate;
         recordToBeUpdated.state = forceState;
+        recordToBeUpdated.revealed = _revealed;
 
         allEvents[eventID] = recordToBeUpdated;
     }
@@ -181,7 +186,15 @@ contract GenericNFTPumpContract is
     }
 
     function getEvents() public view returns (eventSchedule[] memory) {
+        
         return allEvents;
+    }
+
+    function getEvent(uint256 eventID) public view returns (eventSchedule memory) {
+        require(eventID >= 0, "Invalid Event ID");
+        require(eventsMap[eventID] == true, "Event Doesnt Exist");
+
+        return allEvents[eventID];
     }
 
     function generalAdmissionMint(uint256 eventID, uint16 quantity)
@@ -201,7 +214,7 @@ contract GenericNFTPumpContract is
         }
     }
 
-    function RingSideMint(uint256 eventID, uint16 quantity)
+    function ringSideMint(uint256 eventID, uint16 quantity)
         external
         payable
         isValidEventMint(eventID, quantity, seatType.Ringside)
@@ -294,8 +307,8 @@ contract GenericNFTPumpContract is
             _exists(_tokenId),
             "ERC721Metadata: URI query for nonexistent token"
         );
-
-        if (revealed == false) {
+        
+        if (allEvents[tokenToEventMap[_tokenId]].revealed == false) {
             return hiddenMetadataUri;
         }
 
@@ -314,8 +327,22 @@ contract GenericNFTPumpContract is
                 : "";
     }
 
-    function setRevealed(bool _state) public onlyOwner {
-        revealed = _state;
+
+    function getTokenEvent(uint256 _tokenId) public view returns (uint256) {
+
+        require(
+            _exists(_tokenId),
+            "Nonexistent token"
+        );
+
+        uint256 _eventID = tokenToEventMap[_tokenId];
+        require(_eventID >= 0, "Event Doesnt Exist");
+
+        return allEvents[_eventID].eventID;
+    }
+
+    function setRevealed(uint256 eventID, bool _state) public onlyOwner {
+        allEvents[eventID].revealed = _state;
     }
 
     function setHiddenMetadataUri(string memory _hiddenMetadataUri)

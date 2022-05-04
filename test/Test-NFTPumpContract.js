@@ -21,7 +21,7 @@ if (true == true)
             let ethBalance = ethers.utils.formatEther(await ethers.provider.getBalance(owner.address));
             console.log("Start Balance: " + ethBalance);
 
-            const currentContract = await ethers.getContractFactory("GenericNFTPumpContract");
+            const currentContract = await ethers.getContractFactory("JHJRinkeby");
             currentToken = await currentContract.deploy(
                 'Test Contract',
                 'Test',
@@ -54,17 +54,27 @@ if (true == true)
             // // Printing process.env property value
             // console.log(process.env);
         });
+
+        let eventID, eventID1, eventID2 ;
+        it("Create Event", async function () {
+            eventID = await currentToken.createAdmissionEvent('Weekend Fight Mint Open 3/1/2022-6/1/2022', 1646161578, 1654110378, 25, 5, true);
+            const receipt = await eventID.wait()
+
+            for (const event of receipt.events) {
+                console.log(`Event ${event.event} created with value ${event.args}`);
+            }  
+            eventID1 = await currentToken.createAdmissionEvent('Weekend Fight123 Mint Open 1/1/2022-6/1/2022', 1646161578, 1654110378, 25, 5, true);
+
+            const receipt1 = await eventID1.wait()
+
+            for (const event of receipt1.events) {
+                console.log(`Event ${event.event} created with value ${event.args}`);
+            }  
+            eventID2 = await currentToken.createAdmissionEvent('Weekend Fight1243 Mint Open 1/1/2022-6/1/2022', 1646161578, 1654110378, 25, 5, true);
+                    
+            let theseEvents = await currentToken.getEvents();                     
+        });
         if (true) {
-            let eventID = -1;
-            it("Create Event", async function () {
-                eventID = await currentToken.createAdmissionEvent('Weekend Fight Mint Open 3/1/2022-6/1/2022', 1646161578, 1654110378, 25, 5, true);
-                eventID = await currentToken.createAdmissionEvent('Weekend Fight123 Mint Open 3/1/2022-6/1/2022', 1646161578, 1654110378, 25, 5, true);
-
-                let theseEvents = await currentToken.getEvents();
-
-                console.log(theseEvents)
-            });
-
             it("Update Vault", async function () {
                 await currentToken.setVaultAddress('0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266');
             });
@@ -73,11 +83,11 @@ if (true == true)
 
                 const PurchaseArray = [
                     // { amount: 1, value: ".055" },
-                    { amount: 5, value: ".275" },
-                    { amount: 5, value: ".275" },
-                    { amount: 5, value: ".275" },
-                    { amount: 5, value: ".275" },
-                    { amount: 5, value: ".275" }
+                    { amount: 1, value: ".275" },
+                    { amount: 1, value: ".275" },
+                    { amount: 1, value: ".275" },
+                    { amount: 1, value: ".275" },
+                    { amount: 1, value: ".275" }
                 ];
 
                 const [adminWallet, userWallet] = await ethers.getSigners();
@@ -116,14 +126,14 @@ if (true == true)
                 const [adminWallet, userWallet] = await ethers.getSigners();
 
                 await currentToken.setBaseURI("ipfs://google.com/");
-                await currentToken.setRevealed(true);
+                
                 let tokenID = 5;
+                const eventID = await currentToken.getTokenEvent(tokenID);
+                await currentToken.setRevealed(eventID, true);
                 const tokenURI = await currentToken.tokenURI(tokenID);
                 const tokenEvent = await currentToken.getTokenEventID(tokenID);
                 expect(tokenURI).to.eq("ipfs://google.com/" + tokenEvent + "/" + tokenID + ".json");
             });
-
-
 
             it('Transfer four tokens to destination account', async () => {
                 const [adminWallet, userWallet] = await ethers.getSigners();
@@ -140,13 +150,9 @@ if (true == true)
                 // expect(await currentToken.balanceOf(userWallet.address)).to.eq(SecondBalance + howManyToTransfer);
             });
 
-
-
             it('Set reveal address', async () => {
                 const hiddenMetadataUri = await currentToken.setHiddenMetadataUri(1);
             });
-
-
 
             it("Burn Token", async function () {
 
@@ -160,12 +166,9 @@ if (true == true)
                 //expect(parseInt(totalSupply)).to.greaterThan(parseInt(totalSupply2));
             });
 
-
-
             it("Set Multiple Parameters", async function () {
                 await currentToken.setParams('70000000000000000', '50000000000000000', '20', true);
             });
-
 
             it("Gets Total Supply", async function () {
                 const [adminWallet, userWallet] = await ethers.getSigners();
@@ -176,9 +179,6 @@ if (true == true)
 
                 console.log("Total Supply: " + parseInt(totalSupply))
             });
-
-
-
 
             it("Get Money Withdraw", async function () {
                 const [owner, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20] = await ethers.getSigners();
@@ -199,6 +199,5 @@ if (true == true)
                 contractEthBalance = ethers.utils.formatEther(await ethers.provider.getBalance(currentToken.address));
                 console.log("Contract Balance: " + contractEthBalance);
             });
-
         }
     })
