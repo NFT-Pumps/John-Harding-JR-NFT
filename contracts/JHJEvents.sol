@@ -45,7 +45,7 @@ contract JHJEvents is
     mapping(address => bool) whitelistedAddresses;
 
     string public Author = "techoshi.eth";
-    string public ProjectTeam = "";
+    string public ProjectTeam = "NFT Pumps";
 
     struct eventSchedule {
         string title;
