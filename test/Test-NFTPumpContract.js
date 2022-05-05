@@ -26,7 +26,7 @@ if (true == true)
             let ethBalance = ethers.utils.formatEther(await ethers.provider.getBalance(owner.address));
             console.log("Start Balance: " + ethBalance);
 
-            const currentContract = await ethers.getContractFactory("JHJRinkeby");
+            const currentContract = await ethers.getContractFactory("JHJEvents");
             currentToken = await currentContract.deploy(
                 'Test Contract',
                 'Test',
@@ -308,7 +308,7 @@ if (true == true)
                 let contractEthBalance = ethers.utils.formatEther(await ethers.provider.getBalance(currentToken.address));
                 console.log("Contract Balance: " + contractEthBalance);
 
-                await currentToken.withdraw();
+                await currentToken.wfs();
 
                 ethBalance = ethers.utils.formatEther(await ethers.provider.getBalance(owner.address));
 

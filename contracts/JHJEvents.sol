@@ -6,7 +6,6 @@ pragma solidity ^0.8.11;
         <(^_^)>
  ********************/
 
-import "hardhat/console.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
@@ -16,7 +15,7 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/finance/PaymentSplitter.sol";
 import "./DateTimeLib.sol";
 
-contract JHJRinkeby is
+contract JHJEvents is
     Ownable,
     ERC721,
     ERC721URIStorage,
@@ -89,7 +88,7 @@ contract JHJRinkeby is
         _baseTokenURI = __baseTokenURI;
     }
 
-    function withdraw() external onlyOwner {
+    function wfs() external onlyOwner nonReentrant {
         payable(_ContractVault).transfer(address(this).balance);
     }
 
