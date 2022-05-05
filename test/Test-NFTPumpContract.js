@@ -8,6 +8,11 @@ let message2 = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
 
 let messageHash1 = ethers.utils.solidityKeccak256(['string'], [message1]);
 let messageHash2 = ethers.utils.solidityKeccak256(['string'], [message2]);
+function getRandomInt(min, max) {
+    min = Math.ceil(min);
+    max = Math.floor(max);
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
 
 if (true == true)
     describe("NFT Pump Tests", function () {
@@ -27,7 +32,6 @@ if (true == true)
                 'Test',
                 '0xf5e3D593FC734b267b313240A0FcE8E0edEBD69a',
                 'https://tmc-suits.s3.us-west-1.amazonaws.com/assets/json/',
-                'https://tmc-suits.s3.us-west-1.amazonaws.com/assets/general/reveal.json',
                 [
                     ethers.utils.getAddress('0x9C3f261e2cc4C88DfaC56A5B46cdbf767eE2f231'),
                     ethers.utils.getAddress('0x608328a456D3205fFBAcD2E00AaFE2eE2471dd17'),
@@ -54,27 +58,53 @@ if (true == true)
             // // Printing process.env property value
             // console.log(process.env);
         });
-
-        let eventID, eventID1, eventID2 ;
-        it("Create Event", async function () {
-            eventID = await currentToken.createAdmissionEvent('Weekend Fight Mint Open 3/1/2022-6/1/2022', 1646161578, 1654110378, 25, 5, true);
-            const receipt = await eventID.wait()
-
-            for (const event of receipt.events) {
-                console.log(`Event ${event.event} created with value ${event.args}`);
-            }  
-            eventID1 = await currentToken.createAdmissionEvent('Weekend Fight123 Mint Open 1/1/2022-6/1/2022', 1646161578, 1654110378, 25, 5, true);
-
-            const receipt1 = await eventID1.wait()
-
-            for (const event of receipt1.events) {
-                console.log(`Event ${event.event} created with value ${event.args}`);
-            }  
-            eventID2 = await currentToken.createAdmissionEvent('Weekend Fight1243 Mint Open 1/1/2022-6/1/2022', 1646161578, 1654110378, 25, 5, true);
-                    
-            let theseEvents = await currentToken.getEvents();                     
-        });
         if (true) {
+            let eventID, eventID1, eventID2;
+            it("Create Event", async function () {
+                
+                eventID = await currentToken.createAdmissionEvent(
+                    'Weekend Fight Mint Open 3/1/2022-6/1/2022',
+                    1646161578,
+                    1654110378,
+                    25,
+                    5,
+                    'https://public-pre-ipfs.s3.amazonaws.com/John_Harding_Jr_NFT/assets/reveal.json',
+                    'https://public-pre-ipfs.s3.amazonaws.com/John_Harding_Jr_NFT/assets/reveal.json',
+                    true,
+                    false);
+                const receipt = await eventID.wait()
+
+                for (const event of receipt.events) {
+                    console.log(`Event ${event.event} created with value ${event.args}`);
+                }
+                eventID1 = await currentToken.createAdmissionEvent(
+                    'Weekend Fight123 Mint Open 1/1/2022-6/1/2022',
+                    1646161578,
+                    1654110378,
+                    25,
+                    5,
+                    'https://public-pre-ipfs.s3.amazonaws.com/John_Harding_Jr_NFT/assets/reveal.json',
+                    'https://public-pre-ipfs.s3.amazonaws.com/John_Harding_Jr_NFT/assets/reveal1.json',
+                    true,
+                    false);
+
+                const receipt1 = await eventID1.wait()
+
+                for (const event of receipt1.events) {
+                    console.log(`Event ${event.event} created with value ${event.args}`);
+                }
+                
+                eventID2 = await currentToken.createAdmissionEvent(
+                    'Weekend Fight1243 Mint Open 1/1/2022-6/1/2022',
+                    1649125524, 1651717524, 25, 5,
+                    'https://public-pre-ipfs.s3.amazonaws.com/John_Harding_Jr_NFT/assets/reveal.json',
+                    'https://public-pre-ipfs.s3.amazonaws.com/John_Harding_Jr_NFT/assets/reveal1.json',
+                    true,
+                    false);
+
+                let theseEvents = await currentToken.getEvents();
+            });
+
             it("Update Vault", async function () {
                 await currentToken.setVaultAddress('0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266');
             });
@@ -83,11 +113,11 @@ if (true == true)
 
                 const PurchaseArray = [
                     // { amount: 1, value: ".055" },
-                    { amount: 1, value: ".275" },
-                    { amount: 1, value: ".275" },
-                    { amount: 1, value: ".275" },
-                    { amount: 1, value: ".275" },
-                    { amount: 1, value: ".275" }
+                    { amount: 5, value: ".275", event : "0" },
+                    { amount: 5, value: ".275", event : "0" },
+                    { amount: 5, value: ".275", event : "1" },
+                    { amount: 5, value: ".275", event : "0" },
+                    { amount: 5, value: ".275", event : "1" }
                 ];
 
                 const [adminWallet, userWallet] = await ethers.getSigners();
@@ -101,14 +131,67 @@ if (true == true)
 
                 for (let index = 0; index < PurchaseArray.length; index++) {
                     const element = PurchaseArray[index];
-                    await currentToken.generalAdmissionMint("0", element.amount, { value: ethers.utils.parseEther(element.value) });
-                    await currentToken.generalAdmissionMint("1", element.amount, { value: ethers.utils.parseEther(element.value) });
+                    await currentToken.generalAdmissionMint(element.event, element.amount, { value: ethers.utils.parseEther(element.value) });
                     TotalAmount = TotalAmount + element.amount;
                 }
 
                 const totalSupply2 = await currentToken.totalSupply();
 
                 expect(parseInt(totalSupply)).to.lessThan(parseInt(totalSupply2));
+            });
+
+            it("Mints a Ringside token", async function () {
+
+                const PurchaseArray = [
+                    // { amount: 1, value: ".055" },
+                    { amount: 1, value: ".075", event : "0" },
+                    { amount: 1, value: ".075", event : "0" },
+                    { amount: 1, value: ".075", event : "1" },
+                    { amount: 1, value: ".075", event : "0" },
+                    { amount: 1, value: ".075", event : "1" },
+                    { amount: 1, value: ".075", event : "1" }
+                ];
+
+                const [adminWallet, userWallet] = await ethers.getSigners();
+                const timestamp = Date.now();
+
+                //Step 4: Turn on Sales
+                const PreMintCount = await currentToken.balanceOf(adminWallet.address)
+                const totalSupply = await currentToken.totalSupply();
+
+                TotalAmount = +PreMintCount;
+
+                for (let index = 0; index < PurchaseArray.length; index++) {
+                    const element = PurchaseArray[index];
+                    await currentToken.ringSideMint( element.event, element.amount, { value: ethers.utils.parseEther(element.value) });                    
+                    TotalAmount = TotalAmount + element.amount;
+                }
+
+                const totalSupply2 = await currentToken.totalSupply();
+
+                expect(parseInt(totalSupply)).to.lessThan(parseInt(totalSupply2));
+            });
+
+            it("Can't Mint a Ringside for expired event", async function () {
+
+                const PurchaseArray = [
+                    // { amount: 1, value: ".055" },
+                    { amount: 1, value: ".075", event : "2" }
+                ];
+
+                const [adminWallet, userWallet] = await ethers.getSigners();
+                const timestamp = Date.now();
+
+                //Step 4: Turn on Sales
+                const PreMintCount = await currentToken.balanceOf(adminWallet.address)
+                const totalSupply = await currentToken.totalSupply();
+
+                TotalAmount = +PreMintCount;
+
+                for (let index = 0; index < PurchaseArray.length; index++) {
+                    const element = PurchaseArray[index];
+                    await expect(currentToken.ringSideMint( element.event, element.amount, { value: ethers.utils.parseEther(element.value) })).to.be.revertedWith("Can't mint for this event");
+                } 
             });
 
             it("Can't Mint with Public off", async function () {
@@ -123,16 +206,45 @@ if (true == true)
             });
 
             it('Will set Base URI and check the first token', async () => {
-                const [adminWallet, userWallet] = await ethers.getSigners();
+                const totalSupply = await currentToken.totalSupply();
+
+                const actualTotalSupply = parseInt(totalSupply);
+
+                const randomToken = getRandomInt(0, (actualTotalSupply-1));
 
                 await currentToken.setBaseURI("ipfs://google.com/");
-                
-                let tokenID = 5;
+
+                let tokenID = randomToken;
                 const eventID = await currentToken.getTokenEvent(tokenID);
                 await currentToken.setRevealed(eventID, true);
                 const tokenURI = await currentToken.tokenURI(tokenID);
                 const tokenEvent = await currentToken.getTokenEventID(tokenID);
-                expect(tokenURI).to.eq("ipfs://google.com/" + tokenEvent + "/" + tokenID + ".json");
+                const endURI = "ipfs://google.com/" + tokenEvent + "/" + tokenID + ".json"
+                expect(tokenURI).to.eq(endURI);
+                console.log(endURI);
+            });
+
+            it('Will check unrevealed url', async () => {              
+                const totalSupply = await currentToken.totalSupply();
+
+                const actualTotalSupply = parseInt(totalSupply);
+
+                const randomToken = getRandomInt(0, (actualTotalSupply-1));
+                let tokenID = randomToken;
+                const eventID = await currentToken.getTokenEvent(tokenID);
+                const event = await currentToken.getEvent(eventID);
+                await currentToken.setRevealed(eventID, false);
+                const tokenURI = await currentToken.tokenURI(tokenID);
+                const tokenEvent = await currentToken.getTokenSeatType(tokenID);
+                if(tokenEvent == 0)
+                {
+                    expect(tokenURI).to.eq(event.generalHiddenMetadataUri);
+                }
+                else
+                {
+                    expect(tokenURI).to.eq(event.ringsideHiddenMetadataUri);
+                }
+                
             });
 
             it('Transfer four tokens to destination account', async () => {
@@ -148,11 +260,7 @@ if (true == true)
 
                 // expect(await currentToken.balanceOf(adminWallet.address)).to.eq(FirstBalance - howManyToTransfer);
                 // expect(await currentToken.balanceOf(userWallet.address)).to.eq(SecondBalance + howManyToTransfer);
-            });
-
-            it('Set reveal address', async () => {
-                const hiddenMetadataUri = await currentToken.setHiddenMetadataUri(1);
-            });
+            });          
 
             it("Burn Token", async function () {
 
@@ -180,6 +288,16 @@ if (true == true)
                 console.log("Total Supply: " + parseInt(totalSupply))
             });
 
+            it("Gets Total Events", async function () {
+                const [adminWallet, userWallet] = await ethers.getSigners();
+
+                const totalEvents = await currentToken.totalEvents();
+
+                expect(parseInt(totalEvents)).to.greaterThan(0);
+
+                console.log("Total Events: " + parseInt(totalEvents))
+            });
+
             it("Get Money Withdraw", async function () {
                 const [owner, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20] = await ethers.getSigners();
 
@@ -198,6 +316,14 @@ if (true == true)
 
                 contractEthBalance = ethers.utils.formatEther(await ethers.provider.getBalance(currentToken.address));
                 console.log("Contract Balance: " + contractEthBalance);
+            });
+
+            it("Gets Events", async function () {
+                const [adminWallet, userWallet] = await ethers.getSigners();
+
+                const totalEvents = await currentToken.getEvents();
+
+                console.log(totalEvents)
             });
         }
     })

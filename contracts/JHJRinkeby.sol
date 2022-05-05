@@ -59,6 +59,8 @@ contract JHJRinkeby is
         uint16 ringsideMinted;
         bool state;
         bool revealed;
+        string generalHiddenMetadataUri;
+        string ringsideHiddenMetadataUri;
     }
 
     enum seatType {
@@ -66,16 +68,16 @@ contract JHJRinkeby is
         Ringside
     }
 
-    eventSchedule[] public allEvents;
+    eventSchedule[] private allEvents;
     mapping(uint256 => bool) public eventsMap;
     mapping(uint256 => uint256) public tokenToEventMap;
+    mapping(uint256 => seatType) public tokenToSeatTypeMap;
 
     constructor(
         string memory contractName,
         string memory contractSymbol,
         address _vault,
         string memory __baseTokenURI,
-        string memory _hiddenMetadataUri,
         address[] memory _payees,
         uint256[] memory _shares
     )
@@ -85,14 +87,13 @@ contract JHJRinkeby is
     {
         _ContractVault = _vault;
         _baseTokenURI = __baseTokenURI;
-        hiddenMetadataUri = _hiddenMetadataUri;
     }
 
     function withdraw() external onlyOwner {
         payable(_ContractVault).transfer(address(this).balance);
     }
 
-    event eventCreated(uint256);   
+    event eventCreated(uint256);
 
     function createAdmissionEvent(
         string memory title,
@@ -100,7 +101,10 @@ contract JHJRinkeby is
         uint256 closedMintDate,
         uint16 generalMints,
         uint16 ringsideMints,
-        bool forceState
+        string memory generalHiddenMetadataUri,
+        string memory ringsideHiddenMetadataUri,
+        bool forceState,
+        bool _revealed
     ) external {
         eventSchedule memory thisRecord = eventSchedule({
             eventID: _eventSupply.current(),
@@ -112,13 +116,15 @@ contract JHJRinkeby is
             state: forceState,
             generalMinted: 0,
             ringsideMinted: 0,
-            revealed: false
+            generalHiddenMetadataUri: generalHiddenMetadataUri,
+            ringsideHiddenMetadataUri: ringsideHiddenMetadataUri,
+            revealed: _revealed
         });
 
         allEvents.push(thisRecord);
         eventsMap[thisRecord.eventID] = true;
         _eventSupply.increment();
-       
+
         emit eventCreated(thisRecord.eventID);
     }
 
@@ -127,6 +133,10 @@ contract JHJRinkeby is
         string memory title,
         uint256 openMintDate,
         uint256 closedMintDate,
+        uint16 generalMints,
+        uint16 ringsideMints,
+        string memory generalHiddenMetadataUri,
+        string memory ringsideHiddenMetadataUri,
         bool forceState,
         bool _revealed
     ) external {
@@ -140,6 +150,10 @@ contract JHJRinkeby is
         recordToBeUpdated.endMint = closedMintDate;
         recordToBeUpdated.state = forceState;
         recordToBeUpdated.revealed = _revealed;
+        recordToBeUpdated.noOfGeneralMints = generalMints;
+        recordToBeUpdated.noOfRingSideMints = ringsideMints;
+        recordToBeUpdated.generalHiddenMetadataUri = generalHiddenMetadataUri;
+        recordToBeUpdated.ringsideHiddenMetadataUri = ringsideHiddenMetadataUri;
 
         allEvents[eventID] = recordToBeUpdated;
     }
@@ -154,7 +168,7 @@ contract JHJRinkeby is
             allEvents[eventID].startMint <= currentTimestamp() &&
                 allEvents[eventID].endMint >= currentTimestamp() &&
                 allEvents[eventID].state == true,
-            "Event can not Mint"
+            "Can't mint for this event"
         );
 
         require(publicMintIsOpen == true, "Mint is Closed");
@@ -186,11 +200,14 @@ contract JHJRinkeby is
     }
 
     function getEvents() public view returns (eventSchedule[] memory) {
-        
         return allEvents;
     }
 
-    function getEvent(uint256 eventID) public view returns (eventSchedule memory) {
+    function getEvent(uint256 eventID)
+        public
+        view
+        returns (eventSchedule memory)
+    {
         require(eventID >= 0, "Invalid Event ID");
         require(eventsMap[eventID] == true, "Event Doesnt Exist");
 
@@ -210,6 +227,7 @@ contract JHJRinkeby is
         for (uint256 i = 0; i < quantity; i++) {
             _tokenSupply.increment();
             tokenToEventMap[supply + i] = eventID;
+            tokenToSeatTypeMap[supply + i] = seatType.General;
             _safeMint(msg.sender, supply + i);
         }
     }
@@ -227,6 +245,7 @@ contract JHJRinkeby is
         for (uint256 i = 0; i < quantity; i++) {
             _tokenSupply.increment();
             tokenToEventMap[supply + i] = eventID;
+            tokenToSeatTypeMap[supply + i] = seatType.Ringside;
             _safeMint(msg.sender, supply + i);
         }
     }
@@ -263,8 +282,23 @@ contract JHJRinkeby is
         return _tokenSupply.current();
     }
 
+     function totalEvents() public view returns (uint256) {
+        return _eventSupply.current();
+    }
+
     function getTokenEventID(uint256 tokenId) public view returns (uint256) {
+        require(_exists(tokenId), "Token ID doesn't exist");
+
         return tokenToEventMap[tokenId];
+    }
+
+    function getTokenSeatType(uint256 tokenId) public view returns (uint256) {
+        require(_exists(tokenId), "Token ID doesn't exist");
+        if (tokenToSeatTypeMap[tokenId] == seatType.Ringside) {
+            return 1;
+        } else {
+            return 0;
+        }
     }
 
     function setBaseURI(string memory newBaseURI) external onlyOwner {
@@ -307,9 +341,17 @@ contract JHJRinkeby is
             _exists(_tokenId),
             "ERC721Metadata: URI query for nonexistent token"
         );
-        
+
         if (allEvents[tokenToEventMap[_tokenId]].revealed == false) {
-            return hiddenMetadataUri;
+            if (tokenToSeatTypeMap[_tokenId] == seatType.Ringside) {
+                return
+                    allEvents[tokenToEventMap[_tokenId]]
+                        .ringsideHiddenMetadataUri;
+            } else {
+                return
+                    allEvents[tokenToEventMap[_tokenId]]
+                        .generalHiddenMetadataUri;
+            }
         }
 
         string memory currentBaseURI = _baseURI();
@@ -327,13 +369,8 @@ contract JHJRinkeby is
                 : "";
     }
 
-
     function getTokenEvent(uint256 _tokenId) public view returns (uint256) {
-
-        require(
-            _exists(_tokenId),
-            "Nonexistent token"
-        );
+        require(_exists(_tokenId), "Nonexistent token");
 
         uint256 _eventID = tokenToEventMap[_tokenId];
         require(_eventID >= 0, "Event Doesnt Exist");
@@ -343,12 +380,5 @@ contract JHJRinkeby is
 
     function setRevealed(uint256 eventID, bool _state) public onlyOwner {
         allEvents[eventID].revealed = _state;
-    }
-
-    function setHiddenMetadataUri(string memory _hiddenMetadataUri)
-        public
-        onlyOwner
-    {
-        hiddenMetadataUri = _hiddenMetadataUri;
     }
 }
