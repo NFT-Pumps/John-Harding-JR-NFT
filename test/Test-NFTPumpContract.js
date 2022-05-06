@@ -71,7 +71,7 @@ if (true == true)
                     'https://public-pre-ipfs.s3.amazonaws.com/John_Harding_Jr_NFT/assets/reveal.json',
                     'https://public-pre-ipfs.s3.amazonaws.com/John_Harding_Jr_NFT/assets/reveal.json',
                     true,
-                    false);
+                    true);
                 const receipt = await eventID.wait()
 
                 for (const event of receipt.events) {
@@ -100,7 +100,7 @@ if (true == true)
                     'https://public-pre-ipfs.s3.amazonaws.com/John_Harding_Jr_NFT/assets/reveal.json',
                     'https://public-pre-ipfs.s3.amazonaws.com/John_Harding_Jr_NFT/assets/reveal1.json',
                     true,
-                    false);
+                    true);
 
                 let theseEvents = await currentToken.getEvents();
             });
@@ -113,11 +113,11 @@ if (true == true)
 
                 const PurchaseArray = [
                     // { amount: 1, value: ".055" },
-                    { amount: 5, value: ".275", event : "0" },
-                    { amount: 5, value: ".275", event : "0" },
-                    { amount: 5, value: ".275", event : "1" },
-                    { amount: 5, value: ".275", event : "0" },
-                    { amount: 5, value: ".275", event : "1" }
+                    { amount: 1, value: ".275", event : "0" },
+                    { amount: 1, value: ".275", event : "0" },
+                    { amount: 1, value: ".275", event : "1" },
+                    { amount: 1, value: ".275", event : "0" },
+                    { amount: 1, value: ".275", event : "1" }
                 ];
 
                 const [adminWallet, userWallet] = await ethers.getSigners();
@@ -212,16 +212,16 @@ if (true == true)
 
                 const randomToken = getRandomInt(0, (actualTotalSupply-1));
 
-                await currentToken.setBaseURI("ipfs://google.com/");
+               // await currentToken.setBaseURI("ipfs://google.com/");
 
                 let tokenID = randomToken;
                 const eventID = await currentToken.getTokenEvent(tokenID);
                 await currentToken.setRevealed(eventID, true);
                 const tokenURI = await currentToken.tokenURI(tokenID);
                 const tokenEvent = await currentToken.getTokenEventID(tokenID);
-                const endURI = "ipfs://google.com/" + tokenEvent + "/" + tokenID + ".json"
-                expect(tokenURI).to.eq(endURI);
-                console.log(endURI);
+                // const endURI = "ipfs://google.com/" + tokenEvent + "/" + tokenID + ".json"
+                // expect(tokenURI).to.eq(endURI);
+                //console.log(endURI);
             });
 
             it('Will check unrevealed url', async () => {              
@@ -244,7 +244,7 @@ if (true == true)
                 {
                     expect(tokenURI).to.eq(event.ringsideHiddenMetadataUri);
                 }
-                
+                await currentToken.setRevealed(eventID, true);
             });
 
             it('Transfer four tokens to destination account', async () => {
@@ -261,18 +261,6 @@ if (true == true)
                 // expect(await currentToken.balanceOf(adminWallet.address)).to.eq(FirstBalance - howManyToTransfer);
                 // expect(await currentToken.balanceOf(userWallet.address)).to.eq(SecondBalance + howManyToTransfer);
             });          
-
-            it("Burn Token", async function () {
-
-                const [adminWallet, userWallet] = await ethers.getSigners();
-
-                let signature = await adminWallet.signMessage(ethers.utils.arrayify(messageHash1));
-
-                const totalSupply = await currentToken.totalSupply();
-                await currentToken.burn(1);
-                const totalSupply2 = await currentToken.totalSupply();
-                //expect(parseInt(totalSupply)).to.greaterThan(parseInt(totalSupply2));
-            });
 
             it("Set Multiple Parameters", async function () {
                 await currentToken.setParams('70000000000000000', '50000000000000000', '20', true);
@@ -324,6 +312,41 @@ if (true == true)
                 const totalEvents = await currentToken.getEvents();
 
                 console.log(totalEvents)
+            });
+
+            it("Get Token URI's", async () => {
+                const totalSupply = await currentToken.totalSupply();
+
+                const actualTotalSupply = parseInt(totalSupply);
+                for (let index = 0; index < actualTotalSupply; index++) {
+                    // const randomToken = getRandomInt(0, (actualTotalSupply-1));
+                    console.log(index);
+                    //await currentToken.setBaseURI("ipfs://google.com/");
+    
+                    let tokenID = index;
+                    // const eventID = await currentToken.getTokenEvent(tokenID);
+                    // console.log("Event ID:" + eventID)
+                    // await currentToken.setRevealed(eventID, true);
+                    const tokenURI = await currentToken.tokenURI(tokenID);
+                    // const tokenEvent = await currentToken.getTokenEventID(tokenID);
+                    // const endURI = "ipfs://google.com/" + tokenEvent + "/" + tokenID + ".json"
+                    // expect(tokenURI).to.eq(endURI);
+                    console.log(tokenURI);
+                    
+                }
+                
+            });
+
+            it("Burn Token", async function () {
+
+                const [adminWallet, userWallet] = await ethers.getSigners();
+
+                let signature = await adminWallet.signMessage(ethers.utils.arrayify(messageHash1));
+
+                const totalSupply = await currentToken.totalSupply();
+                await currentToken.burn(1);
+                const totalSupply2 = await currentToken.totalSupply();
+                //expect(parseInt(totalSupply)).to.greaterThan(parseInt(totalSupply2));
             });
         }
     })

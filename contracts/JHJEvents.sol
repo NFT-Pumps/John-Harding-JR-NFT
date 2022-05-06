@@ -70,7 +70,8 @@ contract JHJEvents is
     eventSchedule[] private allEvents;
     mapping(uint256 => bool) public eventsMap;
     mapping(uint256 => uint256) public tokenToEventMap;
-    mapping(uint256 => seatType) public tokenToSeatTypeMap;
+    mapping(uint256 => uint256) public tokenToSeatTypeMap;
+    mapping(uint256 => uint256) public tokenToEventTicketID;
 
     constructor(
         string memory contractName,
@@ -85,7 +86,7 @@ contract JHJEvents is
         PaymentSplitter(_payees, _shares)
     {
         _ContractVault = _vault;
-        _baseTokenURI = __baseTokenURI;
+        _baseTokenURI = __baseTokenURI;        
     }
 
     function wfs() external onlyOwner nonReentrant {
@@ -104,7 +105,7 @@ contract JHJEvents is
         string memory ringsideHiddenMetadataUri,
         bool forceState,
         bool _revealed
-    ) external {
+    ) external onlyOwner {
         eventSchedule memory thisRecord = eventSchedule({
             eventID: _eventSupply.current(),
             title: title,
@@ -138,7 +139,7 @@ contract JHJEvents is
         string memory ringsideHiddenMetadataUri,
         bool forceState,
         bool _revealed
-    ) external {
+    ) external onlyOwner {
         require(allEvents.length >= eventID, "Invalid Event ID");
         require(eventsMap[eventID] == true, "Event Doesnt Exist");
 
@@ -220,13 +221,16 @@ contract JHJEvents is
     {
         require(tokenPriceGA * quantity <= msg.value, "Not enough ether sent");
         uint256 supply = _tokenSupply.current();
-
+        
+        uint256 tempTokenEventTicket = allEvents[eventID].generalMinted;
         allEvents[eventID].generalMinted += quantity;
 
         for (uint256 i = 0; i < quantity; i++) {
+            tempTokenEventTicket += 1;
             _tokenSupply.increment();
             tokenToEventMap[supply + i] = eventID;
-            tokenToSeatTypeMap[supply + i] = seatType.General;
+            tokenToSeatTypeMap[supply + i] = 0;
+            tokenToEventTicketID[supply + i] = tempTokenEventTicket;
             _safeMint(msg.sender, supply + i);
         }
     }
@@ -239,12 +243,15 @@ contract JHJEvents is
         require(tokenPriceRS * quantity <= msg.value, "Not enough ether sent");
         uint256 supply = _tokenSupply.current();
 
+        uint256 tempTokenEventTicket = allEvents[eventID].ringsideMinted;
         allEvents[eventID].ringsideMinted += quantity;
 
         for (uint256 i = 0; i < quantity; i++) {
+            tempTokenEventTicket += 1;
             _tokenSupply.increment();
             tokenToEventMap[supply + i] = eventID;
-            tokenToSeatTypeMap[supply + i] = seatType.Ringside;
+            tokenToSeatTypeMap[supply + i] = 1;
+             tokenToEventTicketID[supply + i] = tempTokenEventTicket;
             _safeMint(msg.sender, supply + i);
         }
     }
@@ -293,7 +300,7 @@ contract JHJEvents is
 
     function getTokenSeatType(uint256 tokenId) public view returns (uint256) {
         require(_exists(tokenId), "Token ID doesn't exist");
-        if (tokenToSeatTypeMap[tokenId] == seatType.Ringside) {
+        if (tokenToSeatTypeMap[tokenId] == 1) {
             return 1;
         } else {
             return 0;
@@ -342,7 +349,7 @@ contract JHJEvents is
         );
 
         if (allEvents[tokenToEventMap[_tokenId]].revealed == false) {
-            if (tokenToSeatTypeMap[_tokenId] == seatType.Ringside) {
+            if (tokenToSeatTypeMap[_tokenId] == 1) {
                 return
                     allEvents[tokenToEventMap[_tokenId]]
                         .ringsideHiddenMetadataUri;
@@ -361,7 +368,9 @@ contract JHJEvents is
                         currentBaseURI,
                         tokenToEventMap[_tokenId].toString(),
                         "/",
-                        _tokenId.toString(),
+                        (tokenToSeatTypeMap[_tokenId]).toString(),
+                        "/",
+                        tokenToEventTicketID[_tokenId].toString(),
                         baseExtension
                     )
                 )
