@@ -212,16 +212,18 @@ if (true == true)
 
                 const randomToken = getRandomInt(0, (actualTotalSupply-1));
 
-               // await currentToken.setBaseURI("ipfs://google.com/");
+                await currentToken.setBaseURI("ipfs://google.com/");
 
                 let tokenID = randomToken;
                 const eventID = await currentToken.getTokenEvent(tokenID);
                 await currentToken.setRevealed(eventID, true);
                 const tokenURI = await currentToken.tokenURI(tokenID);
                 const tokenEvent = await currentToken.getTokenEventID(tokenID);
-                // const endURI = "ipfs://google.com/" + tokenEvent + "/" + tokenID + ".json"
-                // expect(tokenURI).to.eq(endURI);
-                //console.log(endURI);
+                const tokenSeatType = await currentToken.getTokenSeatType(tokenID);
+                const tokenTicketID = await currentToken.getTokenEventTicketID(tokenID);
+                const endURI = "ipfs://google.com/" + tokenEvent + "/" + tokenSeatType + "/"+ tokenTicketID + ".json"
+                expect(tokenURI).to.eq(endURI);
+                console.log(endURI);
             });
 
             it('Will check unrevealed url', async () => {              
@@ -320,7 +322,7 @@ if (true == true)
                 const actualTotalSupply = parseInt(totalSupply);
                 for (let index = 0; index < actualTotalSupply; index++) {
                     // const randomToken = getRandomInt(0, (actualTotalSupply-1));
-                    console.log(index);
+                    // console.log(index);
                     //await currentToken.setBaseURI("ipfs://google.com/");
     
                     let tokenID = index;
@@ -331,7 +333,7 @@ if (true == true)
                     // const tokenEvent = await currentToken.getTokenEventID(tokenID);
                     // const endURI = "ipfs://google.com/" + tokenEvent + "/" + tokenID + ".json"
                     // expect(tokenURI).to.eq(endURI);
-                    console.log(tokenURI);
+            //        console.log(tokenURI);
                     
                 }
                 

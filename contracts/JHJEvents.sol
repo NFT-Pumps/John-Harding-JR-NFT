@@ -9,7 +9,6 @@ pragma solidity ^0.8.11;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
-import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/finance/PaymentSplitter.sol";
@@ -23,22 +22,18 @@ contract JHJEvents is
     PaymentSplitter
 {
     using Counters for Counters.Counter;
-    using ECDSA for bytes32;
     using Strings for uint256;
 
     Counters.Counter private _eventSupply;
     Counters.Counter private _tokenSupply;
 
-    //uint256 public constant MAX_TOKENS = 25;
+    bool public publicMintIsOpen = false;
     uint256 public publicMintMaxLimit = 5;
     uint256 public tokenPriceGA = 0.055 ether;
     uint256 public tokenPriceRS = 0.075 ether;
 
-    bool public publicMintIsOpen = false;
-
     string _baseTokenURI;
     string public baseExtension = ".json";
-    string public hiddenMetadataUri;
 
     address private _ContractVault = 0x0000000000000000000000000000000000000000;
 
@@ -70,7 +65,7 @@ contract JHJEvents is
     eventSchedule[] private allEvents;
     mapping(uint256 => bool) public eventsMap;
     mapping(uint256 => uint256) public tokenToEventMap;
-    mapping(uint256 => uint256) public tokenToSeatTypeMap;
+    mapping(uint256 => seatType) public tokenToSeatTypeMap;
     mapping(uint256 => uint256) public tokenToEventTicketID;
 
     constructor(
@@ -86,11 +81,44 @@ contract JHJEvents is
         PaymentSplitter(_payees, _shares)
     {
         _ContractVault = _vault;
-        _baseTokenURI = __baseTokenURI;        
+        _baseTokenURI = __baseTokenURI;
     }
 
-    function wfs() external onlyOwner nonReentrant {
-        payable(_ContractVault).transfer(address(this).balance);
+    modifier isValidEventMint(
+        uint256 eventID,
+        uint256 quantity,
+        seatType mintType
+    ) {
+        require(eventsMap[eventID] == true, "Event Doesnt Exist");
+        require(
+            allEvents[eventID].startMint <= currentTimestamp() &&
+                allEvents[eventID].endMint >= currentTimestamp() &&
+                allEvents[eventID].state == true,
+            "Can't mint for this event"
+        );
+
+        require(publicMintIsOpen == true, "Mint is Closed");
+        require(quantity <= publicMintMaxLimit, "Mint amount too large");
+
+        uint16 maxNoOfMints = 0;
+        uint16 currentSupplyOfMintType = 0;
+
+        if (mintType == seatType.General) {
+            maxNoOfMints = allEvents[eventID].noOfGeneralMints;
+            currentSupplyOfMintType = allEvents[eventID].generalMinted;
+        }
+
+        if (mintType == seatType.Ringside) {
+            maxNoOfMints = allEvents[eventID].noOfRingSideMints;
+            currentSupplyOfMintType = allEvents[eventID].ringsideMinted;
+        }
+
+        require(
+            quantity + currentSupplyOfMintType <= maxNoOfMints,
+            "Not enough tokens remaining"
+        );
+
+        _;
     }
 
     event eventCreated(uint256);
@@ -158,62 +186,6 @@ contract JHJEvents is
         allEvents[eventID] = recordToBeUpdated;
     }
 
-    modifier isValidEventMint(
-        uint256 eventID,
-        uint256 quantity,
-        seatType mintType
-    ) {
-        require(eventsMap[eventID] == true, "Event Doesnt Exist");
-        require(
-            allEvents[eventID].startMint <= currentTimestamp() &&
-                allEvents[eventID].endMint >= currentTimestamp() &&
-                allEvents[eventID].state == true,
-            "Can't mint for this event"
-        );
-
-        require(publicMintIsOpen == true, "Mint is Closed");
-        require(quantity <= publicMintMaxLimit, "Mint amount too large");
-
-        uint16 maxNoOfMints = 0;
-        uint16 currentSupplyOfMintType = 0;
-
-        if (mintType == seatType.General) {
-            maxNoOfMints = allEvents[eventID].noOfGeneralMints;
-            currentSupplyOfMintType = allEvents[eventID].generalMinted;
-        }
-
-        if (mintType == seatType.Ringside) {
-            maxNoOfMints = allEvents[eventID].noOfRingSideMints;
-            currentSupplyOfMintType = allEvents[eventID].ringsideMinted;
-        }
-
-        require(
-            quantity + currentSupplyOfMintType <= maxNoOfMints,
-            "Not enough tokens remaining"
-        );
-
-        _;
-    }
-
-    function currentTimestamp() public view returns (uint256) {
-        return block.timestamp;
-    }
-
-    function getEvents() public view returns (eventSchedule[] memory) {
-        return allEvents;
-    }
-
-    function getEvent(uint256 eventID)
-        public
-        view
-        returns (eventSchedule memory)
-    {
-        require(eventID >= 0, "Invalid Event ID");
-        require(eventsMap[eventID] == true, "Event Doesnt Exist");
-
-        return allEvents[eventID];
-    }
-
     function generalAdmissionMint(uint256 eventID, uint16 quantity)
         external
         payable
@@ -221,7 +193,7 @@ contract JHJEvents is
     {
         require(tokenPriceGA * quantity <= msg.value, "Not enough ether sent");
         uint256 supply = _tokenSupply.current();
-        
+
         uint256 tempTokenEventTicket = allEvents[eventID].generalMinted;
         allEvents[eventID].generalMinted += quantity;
 
@@ -229,7 +201,7 @@ contract JHJEvents is
             tempTokenEventTicket += 1;
             _tokenSupply.increment();
             tokenToEventMap[supply + i] = eventID;
-            tokenToSeatTypeMap[supply + i] = 0;
+            tokenToSeatTypeMap[supply + i] = seatType.General;
             tokenToEventTicketID[supply + i] = tempTokenEventTicket;
             _safeMint(msg.sender, supply + i);
         }
@@ -250,8 +222,8 @@ contract JHJEvents is
             tempTokenEventTicket += 1;
             _tokenSupply.increment();
             tokenToEventMap[supply + i] = eventID;
-            tokenToSeatTypeMap[supply + i] = 1;
-             tokenToEventTicketID[supply + i] = tempTokenEventTicket;
+            tokenToSeatTypeMap[supply + i] = seatType.Ringside;
+            tokenToEventTicketID[supply + i] = tempTokenEventTicket;
             _safeMint(msg.sender, supply + i);
         }
     }
@@ -280,33 +252,6 @@ contract JHJEvents is
         tokenPriceRS = newPrice;
     }
 
-    function togglePublicMint() external onlyOwner {
-        publicMintIsOpen = !publicMintIsOpen;
-    }
-
-    function totalSupply() public view returns (uint256) {
-        return _tokenSupply.current();
-    }
-
-     function totalEvents() public view returns (uint256) {
-        return _eventSupply.current();
-    }
-
-    function getTokenEventID(uint256 tokenId) public view returns (uint256) {
-        require(_exists(tokenId), "Token ID doesn't exist");
-
-        return tokenToEventMap[tokenId];
-    }
-
-    function getTokenSeatType(uint256 tokenId) public view returns (uint256) {
-        require(_exists(tokenId), "Token ID doesn't exist");
-        if (tokenToSeatTypeMap[tokenId] == 1) {
-            return 1;
-        } else {
-            return 0;
-        }
-    }
-
     function setBaseURI(string memory newBaseURI) external onlyOwner {
         _baseTokenURI = newBaseURI;
     }
@@ -315,14 +260,24 @@ contract JHJEvents is
         _ContractVault = newVault;
     }
 
-    function _baseURI() internal view override returns (string memory) {
-        return _baseTokenURI;
+    function setBaseExtension(string memory _baseExtension) external onlyOwner {
+        baseExtension = _baseExtension;
     }
 
-    //receive() external payable {}
+    function wfs() external onlyOwner nonReentrant {
+        payable(_ContractVault).transfer(address(this).balance);
+    }
 
-    function setBaseExtension(string memory _baseExtension) public onlyOwner {
-        baseExtension = _baseExtension;
+    function burn(uint256 tokenId) external onlyOwner {
+        _burn(tokenId);
+    }
+
+    function togglePublicMint() external onlyOwner {
+        publicMintIsOpen = !publicMintIsOpen;
+    }
+
+    function setRevealed(uint256 eventID, bool _state) external onlyOwner {
+        allEvents[eventID].revealed = _state;
     }
 
     function _burn(uint256 tokenId)
@@ -332,8 +287,57 @@ contract JHJEvents is
         super._burn(tokenId);
     }
 
-    function burn(uint256 tokenId) public onlyOwner {
-        _burn(tokenId);
+    function _baseURI() internal view override returns (string memory) {
+        return _baseTokenURI;
+    }
+
+    function currentTimestamp() public view returns (uint256) {
+        return block.timestamp;
+    }
+
+    function getEvents() public view returns (eventSchedule[] memory) {
+        return allEvents;
+    }
+
+    function getEvent(uint256 eventID)
+        public
+        view
+        returns (eventSchedule memory)
+    {
+        require(eventID >= 0, "Invalid Event ID");
+        require(eventsMap[eventID] == true, "Event Doesnt Exist");
+
+        return allEvents[eventID];
+    }
+
+    function totalSupply() public view returns (uint256) {
+        return _tokenSupply.current();
+    }
+
+    function totalEvents() public view returns (uint256) {
+        return _eventSupply.current();
+    }
+
+    function getTokenEventID(uint256 tokenId) public view returns (uint256) {
+        require(_exists(tokenId), "Token ID doesn't exist");
+
+        return tokenToEventMap[tokenId];
+    }
+
+    function getTokenSeatType(uint256 tokenId) public view returns (seatType) {
+        require(_exists(tokenId), "Token ID doesn't exist");
+
+        return tokenToSeatTypeMap[tokenId];
+    }
+
+    function getTokenEventTicketID(uint256 tokenId)
+        public
+        view
+        returns (uint256)
+    {
+        require(_exists(tokenId), "Token ID doesn't exist");
+
+        return tokenToEventTicketID[tokenId];
     }
 
     function tokenURI(uint256 _tokenId)
@@ -349,7 +353,7 @@ contract JHJEvents is
         );
 
         if (allEvents[tokenToEventMap[_tokenId]].revealed == false) {
-            if (tokenToSeatTypeMap[_tokenId] == 1) {
+            if (tokenToSeatTypeMap[_tokenId] == seatType.Ringside) {
                 return
                     allEvents[tokenToEventMap[_tokenId]]
                         .ringsideHiddenMetadataUri;
@@ -368,7 +372,7 @@ contract JHJEvents is
                         currentBaseURI,
                         tokenToEventMap[_tokenId].toString(),
                         "/",
-                        (tokenToSeatTypeMap[_tokenId]).toString(),
+                        uint256(tokenToSeatTypeMap[_tokenId]).toString(),
                         "/",
                         tokenToEventTicketID[_tokenId].toString(),
                         baseExtension
@@ -384,9 +388,5 @@ contract JHJEvents is
         require(_eventID >= 0, "Event Doesnt Exist");
 
         return allEvents[_eventID].eventID;
-    }
-
-    function setRevealed(uint256 eventID, bool _state) public onlyOwner {
-        allEvents[eventID].revealed = _state;
     }
 }
