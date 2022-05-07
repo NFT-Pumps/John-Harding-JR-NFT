@@ -29,8 +29,8 @@ contract JHJEvents is
 
     bool public publicMintIsOpen = false;
     uint256 public publicMintMaxLimit = 5;
-    uint256 public tokenPriceGA = 0.055 ether;
-    uint256 public tokenPriceRS = 0.075 ether;
+    uint256 public tokenPriceGA = 0.069 ether;
+    uint256 public tokenPriceRS = 0.092 ether;
 
     string _baseTokenURI;
     string public baseExtension = ".json";
